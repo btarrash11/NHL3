@@ -1,0 +1,146 @@
+---
+title: "Exploratory Analysis"
+author: "Brandon Tarrash"
+date: "June 30, 2021"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: cosmo
+    toc: yes
+    toc_float: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, warning = FALSE, message = FALSE, fig.width=6, fig.height=4, out.width = "70%", fig.align = "center") 
+```
+Abstract: 
+We used this project as an opportunity to use our recently learned data analysis skills and combine it with sports, which is something that we are both passionate about. Within this analysis we tried to answer two important questions: First was does a player's ZSR have a major effect on his Corsi? Secondly, we questioned the integrity of the PDO "Luck" statistic. We were able to use the James Arthur NHL data set which was downloaded from github as the base statistics of this project. Specifically, we used his "Skaters" and "Teams" data, along with manually plugging some data into these tables in order to study the results. Although we do our best to explain as we go, there are some important definitions that are essential to understand that many people who don't have prior knowledge of hockey analytics should learn. These are "ZSR", "Corsi", and "PDO". ZSR, or Zone Start Ratio, is the ratio of how many face-offs a player is on for in the offensive zone relative to the defensive zone. This can be an interesting statistic to look at as players who start off in an offensive position more often are at an inherent advantage to those who are more oftenly starting in a defensive position. Moving on to Corsi, this is the total number of offensive shot attempts minus the total number of defensive shot attempts. It is believed that better players will create more offense and be more successful when the team has more shots for than against while on the ice. Lastly PDO, which is known as the "luck" statistic, is the sum of a team's shooting percentage and its save percentage, multiplied by 10. The theory is that teams will ultimately approach a mean of 100. If PDO is greater than this team is probably not as good as they seem as they are getting more luck with goals, whereas a team with a pdo below 100 are probably better than they seem and are just getting unlucky. We will scrape through the github data and use these analytics in order to look at some important questions in hockey.  
+
+
+Overview and Motivation/Related Work: The goal of this project is to take a look at the effectiveness of some of the popular advanved hockey stats, as well as how some of these stats may play into each other. It is always important to question the basis of some statistics and look at ways that these statistics may be useful, as well as some of the situations where they may be ineffective in telling the whole story. I was inspired to study this data in hockey as I hae been a hockey fan for as long as I can remember. I started attending NHL games on a weekly basis as one of my best friend's growing up had season tickets to the Islanders. As my love for hockey grew as I got older, I saw the explosion in statistics in other sports, specifically baseball. When I started working in the statistics field, I saw a great opportunity to mix my school with my passion of hockey, making this project a perfect opportunity for me to get started. 
+
+
+Initial Questions: 
+-Does a player's ZSR have a major effect on his Corsi?
+-How important is “luck” in measuring a team’s success? Is PDO actually a good measure of “luck”?
+As we move through the data, some other questions arise which we look into as we go.
+
+Data/Exploratory Analysis:
+
+We will be using the skaters as well as the teams data packages from James Arthur
+'s "NHL Data" package. The first question we will be looking at is does a player'
+s ZSR have a major effect on his Corsi? ZSR is a calculation of the percentage of times a player starts off in the offensive vs defensive zone. It is assumed you will take more shots and give up less when having a higher ZSR as you will spend more time attacking. We predict that a players ZSR may have a noticeable effect on their Corsi. Compare a players ZSR to their Corsi and see if there is a large impact from ZSR on these numbers, or if it should be used more as a tool to see which players the coach has trust in.
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(readr)
+
+skaters_raw <- read_csv("https://raw.githubusercontent.com/jamesmartherus/nhldata/master/data-raw/skaters_raw.csv")
+
+
+names(skaters_raw) <- tolower(names(skaters_raw))
+names(skaters_raw) <- gsub("%","_pct",names(skaters_raw))
+names(skaters_raw) <- gsub("[+]/-","_plumin",names(skaters_raw))
+names(skaters_raw) <- gsub("/","_",names(skaters_raw))
+names(skaters_raw) <- gsub(" ","_",names(skaters_raw))
+skaters_raw$player <- gsub("[.]"," ",skaters_raw$player)
+skaters_raw$team <- gsub("[.]","",skaters_raw$team)
+skaters_raw$player[skaters_raw$player=="5EBASTIAN AHO"] <- "SEBASTIAN AHO"
+skaters_raw <- skaters_raw %>%
+  separate(team, into=c("team","team2","team3"),sep="/") %>%
+  separate(position, into=c("position","position2","position3")) 
+
+skaters <- skaters_raw
+
+
+skaters %>% select(player, season, team, position, zsr, cf_pct) %>% 
+  ggplot() + geom_point(aes(x = zsr, y = cf_pct)) + facet_wrap(vars(season))
+```
+
+Distributions on the graphs from each year seem to be pretty much the same. Let's take a deeper dive into the most recent 2018-19 season. We will color code by position in order to see if theres any red flags in the data about how these stats align for players of different positions.
+
+```{r}
+skaters %>% 
+  select(player, season, team, position, zsr, cf_pct) %>% 
+  filter(season == "2018-2019") %>% 
+  ggplot() + geom_point(aes(x = zsr, y = cf_pct, color = position))
+
+```
+There seems to be a correlation between ZSR and Corsi as I suspected. The position data doesn't show anything too obvious but we will look closer at it in a bit. First, let's take a look at the graphs correlation.
+
+
+```{r}
+skaters %>% select(zsr, cf_pct) %>% GGally::ggpairs()
+```
+
+There seems to be a pretty large and obvious correlation between ZSR and Corsi. 
+Now we will facet wrap this graph by position to see if any of them have higher correlations in these stats. 
+
+```{r}
+skaters %>% 
+  select(player, season, team, position, zsr, cf_pct) %>% 
+  filter(season == "2018-2019") %>% 
+  ggplot() + geom_point(aes(x = zsr, y = cf_pct)) + facet_wrap(vars(position))
+```
+While they all show correlation, Wing players see less of this effect than do centermen and defensemen, as their graphs are more spread. Defenseman and Centermen seem to take the brunt of the negative effects of having a low ZSR. Lastly, we will include the position in the GGally to analyze the correlation and spread.
+
+```{r}
+skaters %>% select(zsr, cf_pct, position) %>% GGally::ggpairs()
+```
+As hypothesized, you see there is a more clear correlation and distribution in the top two graphs, representing the Centerman and Defenseman.
+
+
+We will next look at How important is “luck” (PDO) in measuring a team’s success? We will again focus on the 2018-19 season as well as adding in the point standings from this season.
+
+```{r}
+library(readr)
+teams_raw <- read_csv("https://raw.githubusercontent.com/jamesmartherus/nhldata/master/data-raw/teams_raw.csv")
+
+names(teams) <- tolower(names(teams))
+teams$team <- gsub("[.]","",teams$team)
+names(teams) <- gsub("%","_pct",names(teams))
+names(teams) <- gsub("[+]/-","_plumin",names(teams))
+names(teams) <- gsub("/","_",names(teams))
+
+
+Lucky_teams <- teams %>% select(team, season, pdo)
+Lucky_teams_18 <- Lucky_teams %>% filter(season == "2018-2019")
+Lucky_teams_18$points <- c("80", "86", "107", "76", "99", "98", "107", "84", "90", "93", "74", "79", "86", "71", "83", "96", "72", "100", "103", "78", "64", "82", "100", "101", "99", "128", "100", "81", "93", "99", "104")
+Lucky_teams_18 %>% ggplot() + geom_point(aes(x = pdo, y = as.numeric(points)))
+```
+
+PDO seems to have a pretty large effect on a teams overall success during a season. Now, to make sure this wasn't a fluke we will compare again with the year before to see if the results are similar.  
+
+```{r}
+Lucky_teams_17 <- Lucky_teams %>% filter(season == "2017-2018")
+Lucky_teams_17$points <- c("101", "70", "112", "62", "83", "97", "84", "76", "95", "92", "73", "78", "96", "98", "101", "71", "97", "117", "80", "77", "67", "98", "100", "100", "94", "113", "105", "73", "109", "114", "105")
+Lucky_teams_17 %>% ggplot() + geom_point(aes(x = pdo, y = as.numeric(points)))
+```
+
+These graphs seem to have very similar distributions. This initially lead's us to believe that being lucky is very closely related to regular season success. However, this seems a little suspicious as in most pro sports, your luck can only take you so far as usually the better team wins. This leads us to belive that team's might have high PDO's not because they are lucky, but because they are good. The PDO stat uses the team's total shots, but does not take into account the quality of these shots and where they are taken from. If PDO truly measure's luck, then team's PDO graphs should be randomly scattered from year to year. 
+
+Our next question: Is PDO actually a good measure of “luck”?
+First we will filter the teams data to only look at the team name, year, and PDO.
+Then we will graph the teams pdo by season. We will facet wrap to take a look at
+how each team's PDO changes from year to year. If PDO truly measures luck, then
+these should be at least slightly scattered by year.
+
+```{r}
+Lucky_teams <- teams %>% select(team, season, pdo)
+Lucky_teams %>% ggplot() + geom_point(aes(x = season, y = pdo)) + facet_wrap(vars(team))
+```
+
+While many teams do look slightly scattered, it seems that these plots move in
+straight lines more often than not. Why do certain teams seem to be deemed as "lucky" for so many consecutive years? This lead's me to believe that PDO may be
+a flawed statistic, as luck should not carry over from year to year. PDO may be a better statistic to measure the quality of chances a team can create as opposed to how lucky the team is. 
+
+
+Final Analysis:
+This analysis helped us take a deeper dive into the advanced hockey analytics and how they may affect a team, a player, as well as each other. We initially found there to be a pretty strong correlation between ZSR and Corsi. We then found that the ZSR statistic seems to have a higher influence on centers and defenseman when compared to wing players. This may be due to the way teams deploy their wingers, or can simply be because there are less wingers in the data, and with more wingers there would show more of a correlation. Regardless, it is important that we found a correlation between ZSR and Corsi across any position as this should be considered when looking at Corsi in the future. We went on to dive into the PDO statistic. We mapped each team's PDO to their regular season success (total points accumulated that year) for two seperate years. We found that the data showed a relatively high correlation between PDO and success, however raising doubt to the true luck factor of the PDO statistic. We went on to map every teams PDO by season over 12 years. While some of this data was spread as predicted, many of them seemed to show consistency from year to year. This lead us to believe that PDO more accurately measures the quality of chances a team develops as opposed to their luck, showing why dominate teams seemed to stay lucky over several years, while bad teams did the opposite. 
+
+
+
+
